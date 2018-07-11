@@ -18,7 +18,7 @@
   <tbody class="chat_room_list">
     <% @chat_rooms.reverse.each do |chat_room| %>
       <tr>
-        <td><%= chat_room.title %></td>
+        <td><span class="title<%=chat_room.id%>"><%= chat_room.title %></span></td>
         <td><span class="current<%=chat_room.id%>"><%= chat_room.admissions.size %></span> / <%= chat_room.max_count %></td>
         <td><%= chat_room.master_id %></td>
         <td><%= link_to 'Show', chat_room %></td>
@@ -39,17 +39,23 @@ $(document).on('ready', function() {
     $('.chat_room_list').prepend(`
       <tr>
         <td>${data.title}</td>
-        <td><span class="current${data.id}">0</span>/${data.max_count}</td>
+        <td><span class="current${data.id}">0</span> / ${data.max_count}</td>
         <td>${data.master_id}</td>
         <td><a href="/chat_rooms/${data.id}">Show</a></td>
       </tr>`);
 
   }
-    
-    function user_joined(data) {
-      var current = $(`.current${data.chat_room_id}`);
-      current.text(parseInt(current.text()) + 1);
-    }
+  
+  function user_joined(data) {
+    var current = $(`.current${data.chat_room_id}`);
+    console.log(current)
+    current.text(parseInt(current.text()) + 1);
+  }
+  
+  function room_updated(data) {
+    var ch_title = $(`.title${chat_room.id}`);
+    ch_title.text(ch_title.text());
+  }
     
     
     var pusher = new Pusher('<%= ENV["pusher_key"] %>', {
@@ -59,13 +65,21 @@ $(document).on('ready', function() {
 
     var channel = pusher.subscribe('chat_room');
     channel.bind('create', function(data) {
-      console.log(data);
+      //console.log(data);
       room_created(data);
     });
     channel.bind('join', function(data) {
-      console.log(data);
+      //console.log(data);
       user_joined(data);
+    });
+    channel.bind('addone', function(data) {
+      user_joined(data);
+    });
+    
+    channel.bind('update', function(data) {
+      room_updated(data);
     })
+    
 });
   
   

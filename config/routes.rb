@@ -3,6 +3,8 @@ Rails.application.routes.draw do
     member do
       # chat_room/:id/join 으로 왔을 때 메소드 실행
       post '/join' => 'chat_rooms#user_admit_room', as: 'join'
+      post '/chat' => 'chat_rooms#chat'
+      delete '/exit' => 'chat_rooms#user_exit_room'
     end
   end
   
