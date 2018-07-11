@@ -58,10 +58,14 @@ class ChatRoomsController < ApplicationController
   # DELETE /chat_rooms/1
   # DELETE /chat_rooms/1.json
   def destroy
-    @chat_room.destroy
-    respond_to do |format|
-      format.html { redirect_to chat_rooms_url, notice: 'Chat room was successfully destroyed.' }
-      format.json { head :no_content }
+    if @chat_room.master_id.eql? (current_user.email)
+      @chat_room.destroy
+      respond_to do |format|
+         format.html { redirect_to chat_rooms_url, notice: 'Chat room was successfully destroyed.' }
+         format.json { head :no_content }
+      end
+    else
+      render js: "alert(방장 외에는 방을 삭제할 수 없습니다.)"
     end
   end
 

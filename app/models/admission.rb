@@ -15,6 +15,7 @@ class Admission < ApplicationRecord
     
     def user_exit_chat_room_notification
         Pusher.trigger("chat_room_#{self.chat_room_id}", 'exit', self.as_json.merge({email: self.user.email}))
+        Pusher.trigger("chat_room", 'minusone', self.as_json)
     end
     
 end

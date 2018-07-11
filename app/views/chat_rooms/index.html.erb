@@ -17,11 +17,12 @@
 
   <tbody class="chat_room_list">
     <% @chat_rooms.reverse.each do |chat_room| %>
-      <tr>
+      <tr class="room<%= chat_room.id %>">
         <td><span class="title<%=chat_room.id%>"><%= chat_room.title %></span></td>
-        <td><span class="current<%=chat_room.id%>"><%= chat_room.admissions.size %></span> / <%= chat_room.max_count %></td>
+        <td><span class="current<%=chat_room.id%>"><%= chat_room.admissions.size %></span> / <span class="max_num<%=chat_room.id%>"><%= chat_room.max_count %></span></td>
         <td><%= chat_room.master_id %></td>
         <td><%= link_to 'Show', chat_room %></td>
+        <td><%= link_to 'Destroy', chat_room, method: "delete" %></td>
       </tr>
     <% end %>
   </tbody>
@@ -48,15 +49,27 @@ $(document).on('ready', function() {
   
   function user_joined(data) {
     var current = $(`.current${data.chat_room_id}`);
-    console.log(current)
+    console.log(current);
     current.text(parseInt(current.text()) + 1);
   }
   
   function room_updated(data) {
-    var ch_title = $(`.title${chat_room.id}`);
-    ch_title.text(ch_title.text());
-  }
+    var ch_title = $(`.title${data.id}`);
+    var current = $(`.max_num${data.id}`);
+    console.log(ch_title);
+    ch_title.text(`${data.title}`);
+    current.text(`${data.max_count}`);
     
+  }
+  
+  function room_deleted(data) {
+    $(`.room${data.id}`).remove();
+  }
+  
+  function user_exit(data) {
+    var current = $(`.current${data.chat_room_id}`);
+    current.text(parseInt(current.text()) - 1);
+  }
     
     var pusher = new Pusher('<%= ENV["pusher_key"] %>', {
       cluster: "<%= ENV["pusher_cluster"] %>",
@@ -76,9 +89,18 @@ $(document).on('ready', function() {
       user_joined(data);
     });
     
+    channel.bind('minusone', function(data) {
+      user_exit(data);
+    })
+    
     channel.bind('update', function(data) {
       room_updated(data);
     })
+    
+    channel.bind('delete', function(data) {
+      room_deleted(data);
+    })
+    
     
 });
   

@@ -7,6 +7,8 @@ class ChatRoom < ApplicationRecord
     
     after_commit :create_chat_room_notification, on: :create
     after_commit :update_chat_room_notification, on: :update
+    after_commit :destroy_chat_room_notification, on: :destroy
+    
     
     def create_chat_room_notification
         Pusher.trigger('chat_room', 'create', self.as_json)
@@ -14,6 +16,10 @@ class ChatRoom < ApplicationRecord
     
     def update_chat_room_notification
         Pusher.trigger('chat_room', 'update', self.as_json)
+    end
+    
+    def destroy_chat_room_notification
+        Pusher.trigger('chat_room', 'delete', self.as_json)
     end
     
     # instance method, class method (X)

@@ -1,53 +1,31 @@
-# Day 20. 실시간 채팅방 구현
+# Day 21. 실시간 채팅방 구현_2
 
-## 
 
-`rails _5.0.7_ new chat_app`  새로운 프로젝트 생성
 
-<br>
 
-### 1. Gemfile 설치 및 controller와 modle 구축하기
 
-*Gemfile*
+where( ) --> return 값이 association 값이 들어가 있음 빈 배열이 디폴트 값으로 가지고 있음
 
-```ruby
-# Pusher 
-gem 'pusher'
+where( ).lenth > 0 무조건 false 
 
-# authentication
-gem 'devise'
 
-# key encrypt
-gem 'figaro'
-```
 
-- `$ rails g devise:install`
-- `$ rails g devise users`  :  rails에서 알아서 단수형으로 변경시켜줌
-- ` $ rails g scaffold chat_room` 
-- `$ rails g model chat`, `$ rails g model admission`
+*Day20에서 발생한 문제점*
 
-<br><br>
+- 1번 채팅방에서 남긴 대화들이 2번 채팅방에서 등장함
+- 
 
-### 2. DB 관계 설정하기
 
-- `user` : `chat_room` (N:M)
-  - join table  (admission.rb)
-- `user`: `chat` (1:N)
-- `chat_room`:`chats` (1:N)
 
-<br>
+### remote: true
 
-*app/models/chat_room.rb*
+ajax 코드를 생략하고 remote를 통해 값을 전달할 수 있음
 
-```ruby
-class ChatRoom < ApplicationRecord
-    has_many :admissions
-    has_many :users, through: :admissions
-    
-    has_many :chats
-    ...
- end
-```
+해당 패스로 데이터를 넘겨 줌
+
+
+
+
 
 *app/models/admission.rb*
 
@@ -55,369 +33,215 @@ class ChatRoom < ApplicationRecord
 class Admission < ApplicationRecord
     belongs_to :user
     belongs_to :chat_room, counter_cache: true
+    
+    after_commit :user_join_chat_room_notification, on: :create
+    
+    def user_join_chat_room_notification
+        # 'chat_room'이란 채널에 'join' 이벤트 발생
+        Pusher.trigger("chat_room_#{self.chat_room_id}", 'join', {chat_room_id: self.chat_room_id, email: self.user.email}.as_json)
+    end
+    
 end
 ```
+
+
+
+## 채팅 입력시 바로 chat-list에 append 하기
+
+
 
 *app/models/chat.rb*
 
 ```ruby
-class Chat < ApplicationRecord
-    belongs_to :user
-    belongs_to :chat_room
-end
+
 ```
 
-*app/models/user.rb*
 
-```ruby
-class User < ApplicationRecord
-    ...
-  has_many :admissions
-  has_many :chat_rooms, through: :admissions
-  has_many :chats
-end
+
+
+
+*app/views/show.html.erb*
+
+```erb
+
 ```
 
-*$ rails c를 활용해 db가 잘 구축됐는지 확인하기*
 
-```cmd
-> User.create(email:"abc@gmail.com, password:"123456", password_confirmation:"123456")
 
-> ChatRoom.create(title:"hi", master_id:1, max_count:5)
 
-> u = User.first
-> c = ChatRoom.first
 
-> Admission.create(user_id:u.id, chat_room_id:c.id)
+## 로그인이 안된 상태에서는 채팅방의 내용이 보여서는 안돼
 
-// query문이 1번 
-> ChatRoom.first.admissions.size
-  ChatRoom Load (0.2ms)  SELECT  "chat_rooms".* FROM "chat_rooms" ORDER BY "chat_rooms"."id" ASC LIMIT ?  [["LIMIT", 1]]
- => 1 
 
-// quer문이 2번
-> ChatRoom.first.admissions.count
-  ChatRoom Load (0.3ms)  SELECT  "chat_rooms".* FROM "chat_rooms" ORDER BY "chat_rooms"."id" ASC LIMIT ?  [["LIMIT", 1]]
-   (0.2ms)  SELECT COUNT(*) FROM "admissions" WHERE "admissions"."chat_room_id" = ?  [["chat_room_id", 1]]
- => 1 
-```
 
-- size와 count는 동일한 기능을 하는데 size의 경우 쿼리문이 1번만 작동되어 구현함
 
-<br>
 
-<br>
+### 방 나가기
 
-## 3. Pusher 
+- 채팅방에 참여한 사람 리스트에서 삭제
+- OO님이 나가셨습니다. 가 채팅방에 적혀 나오기
 
-- 'Pusher' 회원가입
-- 'create app' 하기  (front: jquery, back: rails)  →  인증키 등 여러가지 정보가 뜸
 
-<br>
 
-*config/application.yml*
+### channel에 데이터 추가해서 보내기 : .merge
+
+*$ rails c*
 
 ```command
-development:
-    pusher_app_id: #
-    pusher_key: #
-    pusher_secret: #
-    pusher_cluster: #
+
 ```
 
-- Pusher 페이지에서 인증키 등의 정보를 입력하기
 
-<br>
 
-*config/initializers*/pusher.rb
 
-```ruby
-require 'pusher'
 
-Pusher.app_id = ENV["pusher_app_id"]
-Pusher.key = ENV["pusher_key"]
-Pusher.secret = ENV["pusher_secret"]
-Pusher.cluster = ENV["pusher_cluster"]
-Pusher.logger = Rails.logger
-Pusher.encrypted = true
-```
+contorller 에 의해 commit이 실행된 후 
 
-<br>
+model의 메소드가 실행되는데 
 
-*app/views/layouts/apllication.html.erb*
+이때 pusher.trigger을 통해 외부의 Pusher가 동작하면서
 
-```erb
-<!DOCTYPE html>
-<html>
-  <head>
-   ...   
-    <%= stylesheet_link_tag    'application', media: 'all' %>
-    <%= javascript_include_tag 'application'%>
-    <script src="https://js.pusher.com/4.1/pusher.min.js"></script>
-  </head>
-```
+---------- 클라이언트 단 ----------------
 
-- 해당 위치에 `<script src="https://js.pusher.com/4.1/pusher.min.js"></script>` 추가
+Pusher.subscirbe(리스너) 가 동작 해서 이 때 언급한 채널에
 
-<br>
+data를 보내는데 특정 이벤트와 bind 함
 
-<br>
 
-### Pusher 동작 순서
 
-### (1) 새로운 채팅방 만들기
+*ajax와 비교해보기*
 
-1. user가 index에서 'New Chat room' 버튼을 클릭함 → routes를 통해 `chat_rooms#new`, `chat_rooms#create`  → 새로운 채팅방이 생성됨
-2. `controller`가 작동함
+client의 요청을 server에서 받아서 js.erb라는 실행파일을 나에게만 보여줌
 
-*app/controller/chat_rooms_controller*
+Pusher는 js.erb라는 실행파일을 해당 공간에 있는 모든 사람에게 보내준다고 생각하기
 
-```ruby
-...
- def create
-    @chat_room = ChatRoom.new(chat_room_params)
-    # 그러나 row가 만들어진 것은 아님 (admission에는생성x)
-    @chat_room.master_id = current_user.email
-    respond_to do |format|
-      if @chat_room.save
-        # ChatRoom에서 하나의 방을 가르키는 'chat_room'에
-        @chat_room.user_admit_room(current_user)
-        format.html { redirect_to @chat_room, notice: 'Chat room was successfully created.' }
-        format.json { render :show, status: :created, location: @chat_room }
-      else
-        format.html { render :new }
-        format.json { render json: @chat_room.errors, status: :unprocessable_entity }
-      end
-    end
-  end
-...
-```
 
-- `current_user`은 `model` 단까지 넘어오지 않기 때문에, 모델이 `user_admit_room(user)` 메소드를 미리 정의한 후 이를 controller에서 호출해 `current_user`값을 모델로 넘겨줌 
 
-  <br>
 
-3. `model`에 작성해둔 코드가 작동됨
 
-*models/chat_room.rb* : 채팅방이 생성되기까지
+> Todays' error
+>
+> - 오타
+>   - $('.chat_list').append(`<p>${data.user_id}: ${data.message}<small>(${data.created_at})</small></p>`)}   -->  $(' ')   / $(document)
 
-```ruby
-class ChatRoom < ApplicationRecord
-    ...
-    after_commit :create_chat_room_notification, on: :create
-    
-    def create_chat_room_notification
-        Pusher.trigger('chat_room', 'create', self.as_json)
-    end
-    
-    # instance method, class method (X)
-    def user_admit_room(user)
-        # ChatRoom이 하나 만들어 지고 나면 다음 메소드를 같이 실행한다.
-        Admission.create(user_id: user.id, chat_room_id: self.id)
-    end  
-end
-```
 
-- `on: create` '채팅방이' 생성될 때 `create_chat_room_notification`가 동작 됨
-- `chat_room`이라는 채널에 `chat_room` db에 들어온 데이터를 josn 형식으로 보내는데, `create`이라는 이벤트를 실행할 것
-- `on` 은 `CRUD`에 해당하는 action만 넣을 수 있음
 
-*modelsl/admission.rb*  :  채팅방을 만든 사람이 채팅방에 속하는 과정
+client에서 방을 생성해달라고 요청을 보내면 서버에서 controller 실행하고 model method가 실행되고, subscribe 하니까 데이터를 싣고 해당 채널로
 
-```ruby
-class Admission < ApplicationRecord
-   ...
-    after_commit :user_join_chat_room_notification, on: :create
-    
-    def user_join_chat_room_notification
-        Pusher.trigger('chat_room', 'join', {chat_room_id: self.chat_room_id, email: self.user.email}.as_json)
-    end
-end
-```
+데이터를 보내줌
 
-- `on: create` '채팅방이' 생성될 때 `user_join_chat_room_notification`가 동작 됨
-- `chat_room`이라는 채널에 { }안에 들어온 데이터를 josn 형식으로 보내는데, `join`이라는 이벤트를 실행할 것
+show단에서 해당 이름의 채널이 데이터를 받아서, 여기서 function으로 메소드를 실행함 
 
-<br>
+index단에서 해당 이름의 채널이 데이터를 받아서, 여기서  function으로 메소드를 실행해야해
 
-4. index의 js와 ajax가 실행됨
 
-*app/views/index.html.erb*
 
-```erb
-  <tbody class="chat_room_list">
-    <% @chat_rooms.reverse.each do |chat_room| %>
-      <tr>
-        <td><%= chat_room.title %></td>
-        <td><span class="current<%=chat_room.id%>"><%= chat_room.admissions.size %></span> / <%= chat_room.max_count %></td>
-        <td><%= chat_room.master_id %></td>
-        <td><%= link_to 'Show', chat_room %></td>
-      </tr>
-    <% end %>
-  </tbody>
-</table>
 
-<br>
 
-<%= link_to 'New Chat Room', new_chat_room_path %>
+## 과제
 
-<script>
-$(document).on('ready', function() {
-  // 방이 만들어졌을 때 방에 대한 데이터를 받아서
-  // 방 목록에 추가해주는 js funtion
-    function room_created(data) {
-        $('.chat_room_list').prepend(`
-          <tr>
-            <td>${data.title}</td>
-            <td><span class="current${data.id}">0</span>/${data.max_count}</td>
-            <td>${data.master_id}</td>
-            <td><a href="/chat_rooms/${data.id}">Show</a></td>
-          </tr>`);
+1. 현재 메인페이지(index)에서 방을 만들었을 때 참석 인원이 0명인 상태. 어제처럼 1로 증가하게 만들기
+   - 방을 생성하면 index창에 새로 만든 방이 뜨는데, 인원 수가 0이니까 1로 보이게 만들어주기
+   - 바로 화면에서 새로고침없이 변경되도록 만들어야해 
+   - 
 
+2. 방제 수정/삭제하는 경우에 index에서 적용(Puser)가 될 수 있도록
+
+   - 수정
+
+     - `show`에서 수정 버튼을 누르면 `routes`에 의해 ` /chat_rooms/:id/edit(.:format) =>  chat_rooms#edit`, `conttroller`의 해당 액션이 실행됨 *edit*, *update*가 실행됨
+
+   - 삭제
+
+     - `show`에서 채팅방 삭제 버튼을 누르면 `routes`에 의해  `chat_room`  `DELETE /chat_rooms/:id(.:format) => chat_rooms#destroy` 실행됨
+
+     - `controller`가 실행되고 commit한 후에 `model`에서 정의해 준 `method`가 작동함
+
+       *app/models/chat_room.rb*
+
+       ```ruby
+       after_commit :destroy_chat_room_notification, on: :delete
+       ```
+
+       
+
+     - `Pusher.trigger`을 통해 해당 채널에 데이터를 실어서 보내주면서 `delete`이벤드가 실행된다.
+
+       *app/models/chat_room.rb*
+
+       ```erb
+       def destroy_chat_room_notification
+          Pusher.trigger('chat_room', 'delete', self.as_json)
+       end
+       ```
+
+       
+
+     - *index.html.erb*에서 js가 실행되면서 해당 이벤트에 맞는 function을 실행시킨다.
+
+       *app/views/index.html.erb*
+
+       ```erb
+       function room_deleted(data) {
+           $(`.room${data.id}`).remove();
+         }
+       
+       channel.bind('delete', function(data) {
+             room_deleted(data);
+       })
+       ```
+
+     - 단, 채팅방의`master_id`만이 방을 삭제할 수 있다
+
+       *app/controller/chat_rooms_controller*
+
+       ```ruby
+       def destroy
+           if @chat_room.master_id.eql? (current_user.email)
+             @chat_room.destroy
+             respond_to do |format|
+                format.html { redirect_to chat_rooms_url, notice: 'Chat room was successfully destroyed.' }
+                format.json { head :no_content }
+             end
+           else
+             render js: "alert(방장 외에는 방을 삭제할 수 없습니다.)"
+           end
+         end
+       ```
+
+       
+
+3. 방을 나왔을 때, 이 방의 인원을 -1 해주기 (index에서 보여주기)
+
+   - 앞서 구현한 *chat_room.rb*에서 `user_exit_room` 메소드가 발생하며 리스트에서 해당 유저 정보를 삭제함
+
+   - 또한 *admission.rb*에서 user와 chat_room의 연결고리로 퇴장한 유저의 admission 끈을 끊어야함
+
+   - 유저가 퇴장했을 때(해당 user의 admission이 사라졌을 때) 채팅방에 현재 남아 있는 유저 수가 실시간으로 반영됨
+
+     *app/models/admission.rb*
+
+     ```ruby
+     def user_exit_chat_room_notification
+        Pusher.trigger("chat_room_#{self.chat_room_id}", 'exit', self.as_json.merge({email: self.user.email}))
+        Pusher.trigger("chat_room", 'minusone', self.as_json)
+     end
+     ```
+
+     - `Pusher`을 추가해서 현재 참여중인 인원수에 실시간으로 반영되도록 설정
+     - *index*에서 보여지는 채팅방의 현재 참여 인원수 정보는 `chat_room` 채널에 담겨있기 때문에 이를 호출한다.
+
+     *app/views/index.html.erb*
+
+     ```erb
+     function user_exit(data) {
+         var current = $(`.current${data.chat_room_id}`);
+         current.text(parseInt(current.text()) - 1);
      }
-        
-    function user_joined(data) {
-      var current = $(`.current${data.chat_room_id}`);
-      current.text(parseInt(current.text()) + 1);
-    }
-    
-    // 인증정보를 넘김으로써 Pusher 인스턴스를 생성
-    var pusher = new Pusher('<%= ENV["pusher_key"] %>', {
-      cluster: "<%= ENV["pusher_cluster"] %>",
-      encrypted: true
-    });
+     
+     channel.bind('minusone', function(data) {
+           user_exit(data);
+     })
+     ```
 
-    // 'chat_room'이라는 channel로 js방식 subscribe
-    var channel = pusher.subscribe('chat_room');
-    channel.bind('create', function(data) {
-      console.log(data);
-      room_created(data);
-    });
-    channel.bind('join', function(data) {
-      console.log(data);
-      user_joined(data);
-    })
-    
-});
-</script>
-```
-
-<Br>
-
-<br>
-
-#### (2) 채팅방에 join 하기
-
-1.  `show`의 'join' 버튼을 눌렀을 때 
-
-   ```erb
-   <%= link_to 'join', join_chat_room_path(@chat_room), method: 'post', remote: true, class: "join_room" %> |
-   ```
-
-   - `join_chat_room_path` 
-
-     :  /chat_rooms/:id/join(.:format)  => chat_rooms#user_admit_room
-
-     <br>
-
-2. routes를 통해 해당 controller를 실행함
-
-   *app/controller/chat_rooms_controller*
-
-   ```ruby
-   ...
-   def user_admit_room
-       # 현재 유저가 있는 방에서 join 버튼을 눌렀을 때 동작하는 액션
-       @chat_room.user_admit_room(current_user)
-   end
-   ...
-   ```
-
-   <br>
-
-3. `model`에서 정의한 method가 호출됨 + `create` 이후 작동될 method 동작
-
-   *app/models/chat_room.rb*
-
-   ```ruby
-   class ChatRoom < ApplicationRecord
-    ...
-       after_commit :create_chat_room_notification, on: :create
-       
-   # instance method, class method (X)
-   def user_admit_room(user)
-      # ChatRoom이 하나 만들어 지고 나면 다음 메소드를 같이 실행한다.
-      Admission.create(user_id: user.id, chat_room_id: self.id)
-   end
-   ```
-
-   *app/models/admission.rb*
-
-   ```ruby
-   class Admission < ApplicationRecord
-      ...    
-       after_commit :user_join_chat_room_notification, on: :create
-       
-       def user_join_chat_room_notification
-           # 'chat_room'이란 채널에 'join' 이벤트 발생
-           Pusher.trigger('chat_room', 'join', {chat_room_id: self.chat_room_id, email: self.user.email}.as_json)
-       end    
-   end
-   ```
-
-   - 생성됐을 때 `user_join_chat_room_notification`이 동작, `Pusher`이 발생
-   - `chat_room`채널에다가 `join`이벤트가 작동할 것이며, { } 괄호 안의 데이터가 json 타입으로 넘어감
-
-<br>
-
-4. show의 js와 ajax가 실행됨
-
-   *app/views/show.html.erb*
-
-   ```erb
-   <%= current_user.email %>
-   <h3>현재 이 방에 참여한 사람</h3>
-   <div class="join_user_list">
-   <% @chat_room.users.each do |user| %>
-       <p><%= user.email %></p>
-   <% end %>
-   </div>
-   <hr>
-   
-   <%= link_to 'join', join_chat_room_path(@chat_room), method: 'post', remote: true, class: "join_room" %> |
-   <%= link_to 'Edit', edit_chat_room_path(@chat_room) %> |
-   <%= link_to 'Back', chat_rooms_path %>
-   
-   <script>
-   $(document).on('ready', function() {
-       function user_joined(data){
-           $('.join_user_list').append(`<p>${data.email}</p>`);
-       }
-   
-       var pusher = new Pusher('<%= ENV["pusher_key"] %>', {
-         cluster: "<%= ENV["pusher_cluster"] %>",
-         encrypted: true
-       });
-       
-       // chat_room이라는 채널명의 join이라는 이벤트를 
-       var channel = pusher.subscribe('chat_room');
-       channel.bind('join', function(data) {
-         console.log(data);
-         user_joined(data);
-       });
-   })    
-   </script>
-   ...
-   ```
-
-<br>
-
-<br>
-
-
-
-### 과제
-
-현재 이 방에 들어와 있는 사람은 join 버튼이 안보임
-
-한 유저는 방 하나에 한번만 들어갈 수 있음# Ruby_day21
+     
